@@ -1,7 +1,8 @@
-FROM php:7.3.7-fpm
-MAINTAINER Ricardo Coelho <ricardo@nexy.com.br>
+FROM php:5.5-fpm
+MAINTAINER Ricardo Coelho <rcoelho@mpma.mp.br>
 
 COPY assets/oracle /opt/oracle/
+COPY assets/pdo_oci /opt/oracle/pdo_oci/
 COPY assets/php.ini /usr/local/etc/php/
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
@@ -16,19 +17,16 @@ RUN apt-get update \
         libpng-dev \
         libxslt1-dev \
         libldb-dev \
-        libzip-dev \
+	libldap2-dev \
         libmemcached-dev \
         freetds-dev \        
         build-essential \
         libaio1 \
         libldap2-dev \
-        smbclient \
-        liblz4-dev \
-        libmemcached-dev \
-    && sed -i "s/syslog = 0/#syslog = 0/g" /etc/samba/smb.conf \
     && ln -s /usr/lib/x86_64-linux-gnu/libldap.so /usr/lib/libldap.so \
     && ln -s /usr/lib/x86_64-linux-gnu/liblber.so /usr/lib/liblber.so \
-    && docker-php-ext-install -j$(nproc) pgsql pdo_pgsql pdo_mysql ldap xsl gettext mysqli \
+    && docker-php-ext-install -j$(nproc) pgsql pdo_pgsql pdo_mysql ldap xsl gettext mysqli soap \
+    && docker-php-ext-configure soap \
     && docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
     && docker-php-ext-install -j$(nproc) gd intl zip \
     && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
@@ -37,23 +35,18 @@ RUN apt-get update \
     && ln /opt/oracle/instantclient_12_2/libclntsh.so.12.1 /opt/oracle/instantclient_12_2/libclntsh.so \
     && ln /opt/oracle/instantclient_12_2/libocci.so.12.1 /opt/oracle/instantclient_12_2/libocci.so \
     && echo /opt/oracle/instantclient_12_2 > /etc/ld.so.conf.d/oracle-instantclient.conf \
+    && echo /opt/oracle/instantclient_12_2/sdk >> /etc/ld.so.conf.d/oracle-instantclient.conf \
+    && echo /opt/oracle/instantclient_12_2/sdk/include >> /etc/ld.so.conf.d/oracle-instantclient.conf \
     && ldconfig \
-    && echo "instantclient,/opt/oracle/instantclient_12_2" | pecl install oci8 \
-    && docker-php-ext-configure pdo_oci \
-       --with-pdo-oci=instantclient,/opt/oracle/instantclient_12_2,12.2 \
-    && docker-php-ext-install pdo_oci \
+    && echo "instantclient,/opt/oracle/instantclient_12_2" | pecl install oci8-2.0.12 \
+    && cd /opt/oracle/pdo_oci \
+    && phpize \
+    && ORACLE_HOME=/opt/oracle/instantclient_12_2/sdk ./configure --with-pdo-oci=instantclient,/opt/oracle/instantclient_12_2,12.2 \
+    && sed -i 's_/lib/oracle/12.2/client/lib__g' Makefile \
+    && make \
+    && make install \
     && docker-php-ext-configure pdo_dblib --with-libdir=/lib/x86_64-linux-gnu \
     && docker-php-ext-install pdo_dblib \
-    && docker-php-ext-install bcmath \ 
-    && yes "no" | pecl install -f -o lzf \
-    && yes "yes" | pecl install -f -o igbinary msgpack redis \
-    && pecl install -f -o --onlyreqdeps --nobuild memcached-3.1.3 \
-    && cd "$(pecl config-get temp_dir)/memcached" \
-    && phpize \
-    && ./configure --with-php-config=/usr/local/bin/php-config --with-libmemcached-dir --with-zlib-dir --with-system-fastlz=no --enable-memcached-igbinary=yes --enable-memcached-msgpack=yes --enable-memcached-json=yes --enable-memcached-protocol=no --enable-memcached-sasl=yes --enable-memcached-session=yes \
-    && make && make install \
-    && docker-php-ext-enable memcached \
-    && cd - \
-    && docker-php-ext-enable lzf igbinary msgpack redis \
-    && docker-php-ext-enable memcached
+    && pecl install memcached-2.2.0 \
+    && docker-php-ext-enable oci8 pdo_oci memcached
 
