@@ -1,4 +1,4 @@
-FROM php:8.0.2-fpm
+FROM php:8.0.3-fpm
 LABEL maintainer="Ricardo Coelho <ricardo@nexy.com.br>"
 
 COPY assets/oracle /opt/oracle/
@@ -18,6 +18,7 @@ RUN apt-get update \
         libldb-dev \
         libzip-dev \
         libzstd-dev \
+        libmemcached-dev \
         freetds-dev \        
         build-essential \
         libaio1 \
@@ -47,5 +48,14 @@ RUN apt-get update \
     && docker-php-ext-install soap \
     && yes "no" | pecl install -f -o lzf \
     && yes "yes" | pecl install -f -o igbinary msgpack redis \
-    && docker-php-ext-enable lzf igbinary msgpack redis soap
+    && pecl install -f -o --onlyreqdeps --nobuild memcached-3.1.4 \
+    && cd "$(pecl config-get temp_dir)/memcached" \
+    && phpize \
+    && ./configure --with-php-config=/usr/local/bin/php-config --with-libmemcached-dir --with-zlib-dir --with-system-fastlz=no --enable-memcached-igbinary=yes --enable-memcached-msgpack=yes --enable-memcached-json=yes --enable-memcached-protocol=no --enable-memcached-sasl=yes --enable-memcached-session=yes \
+    && make && make install \
+    && docker-php-ext-enable memcached \
+    && cd - \
+    && docker-php-ext-enable lzf igbinary msgpack redis soap \
+    && docker-php-ext-enable memcached
+
 
