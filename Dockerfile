@@ -1,4 +1,4 @@
-FROM php:8.0.3-fpm
+FROM php:8.1.15-fpm-bullseye
 LABEL maintainer="Ricardo Coelho <ricardo@nexy.com.br>"
 
 COPY assets/oracle /opt/oracle/
@@ -25,10 +25,11 @@ RUN apt-get update \
         libldap2-dev \
         smbclient \
         liblz4-dev \
+        libmemcached-dev \
     && sed -i "s/syslog = 0/#syslog = 0/g" /etc/samba/smb.conf \
     && ln -s /usr/lib/x86_64-linux-gnu/libldap.so /usr/lib/libldap.so \
     && ln -s /usr/lib/x86_64-linux-gnu/liblber.so /usr/lib/liblber.so \
-    && docker-php-ext-install -j$(nproc) pgsql pdo_pgsql pdo_mysql ldap xsl gettext mysqli \
+    && docker-php-ext-install -j$(nproc) pgsql pdo_pgsql pdo_mysql ldap xsl gettext mysqli opcache \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) gd intl zip \
     && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
@@ -53,9 +54,9 @@ RUN apt-get update \
     && phpize \
     && ./configure --with-php-config=/usr/local/bin/php-config --with-libmemcached-dir --with-zlib-dir --with-system-fastlz=no --enable-memcached-igbinary=yes --enable-memcached-msgpack=yes --enable-memcached-json=yes --enable-memcached-protocol=no --enable-memcached-sasl=yes --enable-memcached-session=yes \
     && make && make install \
-    && docker-php-ext-enable memcached \
     && cd - \
     && docker-php-ext-enable lzf igbinary msgpack redis soap \
-    && docker-php-ext-enable memcached
-
-
+    && docker-php-ext-enable memcached \
+    && pecl install xmlrpc-1.0.0RC3 \
+    && docker-php-ext-configure oci8 --with-oci8=instantclient,/opt/oracle/instantclient_12_2,12.2 \
+    && docker-php-ext-install oci8
